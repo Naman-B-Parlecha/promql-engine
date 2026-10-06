@@ -52,7 +52,6 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	parser.EnableExperimentalFunctions = true
 	goleak.VerifyTestMain(m,
 		// https://github.com/census-instrumentation/opencensus-go/blob/d7677d6af5953e0506ac4c08f349c62b917a443a/stats/view/worker.go#L34
 		goleak.IgnoreTopFunction("go.opencensus.io/stats/view.(*worker).start"),
@@ -73,11 +72,8 @@ func (s *skipTest) Run(name string, t func(*testing.T)) bool {
 }
 
 func TestPromqlAcceptance(t *testing.T) {
-	// promql acceptance tests disable experimental functions again
-	// since we use them in our tests too we need to enable them afterwards again
-	t.Cleanup(func() { parser.EnableExperimentalFunctions = true })
-
 	engine := engine.New(engine.Opts{
+		EnableExperimentalFunctions: true,
 		EngineOpts: promql.EngineOpts{
 			Logger:                   promslog.NewNopLogger(),
 			EnableAtModifier:         true,
@@ -111,7 +107,7 @@ func TestVectorSelectorWithGaps(t *testing.T) {
 		EnableAtModifier:     true,
 	}
 
-	series := storage.MockSeries(
+	series := storage.MockSeries(nil,
 		[]int64{240, 270, 300, 600, 630, 660},
 		[]float64{1, 2, 3, 4, 5, 6},
 		[]string{labels.MetricName, "foo"},
@@ -4961,11 +4957,13 @@ func TestQueryConcurrency(t *testing.T) {
 		maxQueries   = 4
 		responseChan = make(chan struct{}, maxQueries)
 	)
+	activeQueryTracker, err := promql.NewActiveQueryTracker(t.TempDir(), concurrency, logger)
+	testutil.Ok(t, err)
 	newEngine := engine.New(engine.Opts{
 		EngineOpts: promql.EngineOpts{
 			Timeout:            1 * time.Hour,
 			MaxSamples:         math.MaxInt64,
-			ActiveQueryTracker: promql.NewActiveQueryTracker(t.TempDir(), concurrency, logger),
+			ActiveQueryTracker: activeQueryTracker,
 		}},
 	)
 	for range maxQueries {
@@ -5950,6 +5948,8 @@ func (m *mockIterator) AtFloatHistogram(_ *histogram.FloatHistogram) (int64, *hi
 
 func (m *mockIterator) AtT() int64 { return m.timestamps[m.i] }
 
+func (m *mockIterator) AtST() int64 { return 0 }
+
 func (m *mockIterator) Err() error { return nil }
 
 type slowSeriesSet struct {
@@ -5971,7 +5971,7 @@ func (s *slowSeriesSet) Next() bool {
 }
 
 func (s slowSeriesSet) At() storage.Series {
-	return storage.MockSeries([]int64{0}, []float64{0}, nil)
+	return storage.MockSeries(nil, []int64{0}, []float64{0}, nil)
 }
 
 func (s slowSeriesSet) Err() error { return nil }
@@ -6024,6 +6024,8 @@ func (d *slowIterator) AtFloatHistogram(_ *histogram.FloatHistogram) (int64, *hi
 func (d *slowIterator) AtT() int64 {
 	return d.ts
 }
+
+func (d *slowIterator) AtST() int64 { return 0 }
 
 func (d *slowIterator) At() (int64, float64) {
 	return d.ts, 1
@@ -7032,6 +7034,7 @@ func TestDoubleExponentialSmoothing(t *testing.T) {
 				MaxSamples:           testMaxSamples,
 				EnableNegativeOffset: true,
 				EnableAtModifier:     true,
+				Parser:               parser.NewParser(parser.Options{EnableExperimentalFunctions: true}),
 			}
 
 			start := defaultStart
@@ -7053,7 +7056,7 @@ func TestDoubleExponentialSmoothing(t *testing.T) {
 			testutil.Ok(t, errors.Wrap(err, "create old engine range query"))
 			oldResult := q1.Exec(ctx)
 
-			newEngine := engine.New(engine.Opts{EngineOpts: opts})
+			newEngine := engine.New(engine.Opts{EngineOpts: opts, EnableExperimentalFunctions: true})
 			q2, err := newEngine.NewRangeQuery(ctx, storage, nil, tcase.query, start, end, step)
 			testutil.Ok(t, errors.Wrap(err, "create new engine range query"))
 			newResult := q2.Exec(ctx)

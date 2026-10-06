@@ -74,6 +74,11 @@ type Opts struct {
 	// This will default to false.
 	EnableXFunctions bool
 
+	// EnableExperimentalFunctions enables parsing of experimental PromQL functions.
+	// Replaces the removed global parser.EnableExperimentalFunctions flag (prometheus v0.311.0).
+	// This will default to false.
+	EnableExperimentalFunctions bool
+
 	// EnableAnalysis enables query analysis.
 	EnableAnalysis bool
 
@@ -142,10 +147,9 @@ func NewWithScanners(opts Opts, scanners engstorage.Scanners) *Engine {
 		)
 	}
 
-	functions := make(map[string]*parser.Function, len(parser.Functions))
-	maps.Copy(functions, parser.Functions)
+	// TODO(naman): switch to parser.Options{Functions: ...} once prometheus #19830 is released.
 	if opts.EnableXFunctions {
-		maps.Copy(functions, parse.XFunctions)
+		maps.Copy(parser.Functions, parse.XFunctions)
 	}
 
 	metrics := &engineMetrics{
@@ -179,11 +183,11 @@ func NewWithScanners(opts Opts, scanners engstorage.Scanners) *Engine {
 	}
 
 	return &Engine{
-		functions:          functions,
 		scanners:           scanners,
 		activeQueryTracker: queryTracker,
 
 		disableDuplicateLabelChecks: opts.DisableDuplicateLabelChecks,
+		enableExperimentalFunctions: opts.EnableExperimentalFunctions,
 
 		logger:             opts.Logger,
 		lookbackDelta:      opts.LookbackDelta,
@@ -210,11 +214,11 @@ var (
 )
 
 type Engine struct {
-	functions          map[string]*parser.Function
 	scanners           engstorage.Scanners
 	activeQueryTracker promql.QueryTracker
 
 	disableDuplicateLabelChecks bool
+	enableExperimentalFunctions bool
 
 	logger             *slog.Logger
 	lookbackDelta      time.Duration
@@ -238,7 +242,7 @@ func (e *Engine) MakeInstantQuery(ctx context.Context, q storage.Queryable, opts
 	}
 	defer e.activeQueryTracker.Delete(idx)
 
-	expr, err := parser.NewParser(qs, parser.WithFunctions(e.functions)).ParseExpr()
+	expr, err := parser.NewParser(parser.Options{EnableExperimentalFunctions: e.enableExperimentalFunctions}).ParseExpr(qs)
 	if err != nil {
 		return nil, err
 	}
@@ -336,7 +340,7 @@ func (e *Engine) MakeRangeQuery(ctx context.Context, q storage.Queryable, opts *
 	}
 	defer e.activeQueryTracker.Delete(idx)
 
-	expr, err := parser.NewParser(qs, parser.WithFunctions(e.functions)).ParseExpr()
+	expr, err := parser.NewParser(parser.Options{EnableExperimentalFunctions: e.enableExperimentalFunctions}).ParseExpr(qs)
 	if err != nil {
 		return nil, err
 	}
