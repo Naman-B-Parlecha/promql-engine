@@ -617,12 +617,13 @@ loop:
 			}
 			matrix = append(matrix, s)
 		}
+		matrix, err := mergeSeriesWithSameLabelset(matrix)
+		if err != nil {
+			return newErrResult(ret, err)
+		}
 		sort.Sort(matrix)
 		ret.Value = matrix
 		ret.Warnings = warnings.FromContext(ctx)
-		if matrix.ContainsSameLabelset() {
-			return newErrResult(ret, extlabels.ErrDuplicateLabelSet)
-		}
 		return ret
 	}
 
@@ -675,6 +676,50 @@ loop:
 	ret.Value = result
 	ret.Warnings = warnings.FromContext(ctx)
 	return ret
+}
+
+// mergeSeriesWithSameLabelset merges range-query series that collapsed to the
+// same labelset. e.g. via label_replace, label_join, or unary negation on
+// series that only differed by the dropped __name__. Series whose samples fall
+// on disjoint timestamps are merged into one; a genuine same-timestamp collision
+// returns ErrDuplicateLabelSet.
+func mergeSeriesWithSameLabelset(mat promql.Matrix) (promql.Matrix, error) {
+	if len(mat) <= 1 || !mat.ContainsSameLabelset() {
+		return mat, nil
+	}
+
+	seriesByHash := make(map[uint64][]int, len(mat))
+	for i := range mat {
+		h := mat[i].Metric.Hash()
+		seriesByHash[h] = append(seriesByHash[h], i)
+	}
+
+	merged := make(promql.Matrix, 0, len(seriesByHash))
+	for _, idxs := range seriesByHash {
+		if len(idxs) == 1 {
+			merged = append(merged, mat[idxs[0]])
+			continue
+		}
+		base := mat[idxs[0]]
+		for _, idx := range idxs[1:] {
+			base.Floats = append(base.Floats, mat[idx].Floats...)
+			base.Histograms = append(base.Histograms, mat[idx].Histograms...)
+		}
+		sort.Slice(base.Floats, func(i, j int) bool { return base.Floats[i].T < base.Floats[j].T })
+		sort.Slice(base.Histograms, func(i, j int) bool { return base.Histograms[i].T < base.Histograms[j].T })
+		for i := 1; i < len(base.Floats); i++ {
+			if base.Floats[i].T == base.Floats[i-1].T {
+				return nil, extlabels.ErrDuplicateLabelSet
+			}
+		}
+		for i := 1; i < len(base.Histograms); i++ {
+			if base.Histograms[i].T == base.Histograms[i-1].T {
+				return nil, extlabels.ErrDuplicateLabelSet
+			}
+		}
+		merged = append(merged, base)
+	}
+	return merged, nil
 }
 
 func newErrResult(r *promql.Result, err error) *promql.Result {
