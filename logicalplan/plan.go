@@ -263,6 +263,9 @@ func replacePrometheusNodes(plan parser.Expr) Node {
 			// pushed-down timestamp function
 			switch v := UnwrapParens(t.Args[0]).(type) {
 			case *parser.VectorSelector:
+				if v.Timestamp != nil {
+					v.OriginalOffset = 0
+				}
 				return &VectorSelector{VectorSelector: v, SelectTimestamp: true}
 			case *parser.StepInvariantExpr:
 				vs, ok := UnwrapParens(v.Expr).(*parser.VectorSelector)

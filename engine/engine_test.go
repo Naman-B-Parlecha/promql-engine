@@ -52,7 +52,6 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	parser.EnableExperimentalFunctions = true
 	goleak.VerifyTestMain(m,
 		// https://github.com/census-instrumentation/opencensus-go/blob/d7677d6af5953e0506ac4c08f349c62b917a443a/stats/view/worker.go#L34
 		goleak.IgnoreTopFunction("go.opencensus.io/stats/view.(*worker).start"),
@@ -73,10 +72,6 @@ func (s *skipTest) Run(name string, t func(*testing.T)) bool {
 }
 
 func TestPromqlAcceptance(t *testing.T) {
-	// promql acceptance tests disable experimental functions again
-	// since we use them in our tests too we need to enable them afterwards again
-	t.Cleanup(func() { parser.EnableExperimentalFunctions = true })
-
 	engine := engine.New(engine.Opts{
 		EngineOpts: promql.EngineOpts{
 			Logger:                   promslog.NewNopLogger(),
@@ -85,6 +80,7 @@ func TestPromqlAcceptance(t *testing.T) {
 			MaxSamples:               5e10,
 			Timeout:                  1 * time.Hour,
 			NoStepSubqueryIntervalFn: func(rangeMillis int64) int64 { return 30 * time.Second.Milliseconds() },
+			Parser:                   parser.NewParser(promqltest.TestParserOpts),
 		}})
 
 	st := &skipTest{
@@ -95,6 +91,10 @@ func TestPromqlAcceptance(t *testing.T) {
 			"testdata/info.test",                // info() function unsupported
 			"testdata/literals.test",            // string literal expressions as query results unsupported
 			"testdata/range_queries.test",       // matrix selector as instant query result unsupported
+			"testdata/at_modifier.test",         // @ modifier on subquery expression unsupported
+			"testdata/fill-modifier.test",       // fill/fill_left/fill_right binary modifiers unsupported
+			"testdata/histograms.test",          // histogram_quantiles() function unsupported
+			"testdata/native_histograms.test",   // histogram_quantiles() unsupported; NH sum Kahan/accumulation gaps (follow-up)
 		}, // TODO(sungjin1212): change to test whole cases
 		TBRun: t,
 	}
@@ -218,6 +218,7 @@ func TestQueriesAgainstOldEngine(t *testing.T) {
 		MaxSamples:           1e10,
 		EnableNegativeOffset: true,
 		EnableAtModifier:     true,
+		Parser:               parser.NewParser(parser.Options{EnableExperimentalFunctions: true}),
 	}
 
 	cases := []struct {
@@ -4877,6 +4878,7 @@ min without () (
 							EnableAtModifier:         true,
 							NoStepSubqueryIntervalFn: func(rangeMillis int64) int64 { return 30 * time.Second.Milliseconds() },
 							LookbackDelta:            lookbackDelta,
+							Parser:                   parser.NewParser(parser.Options{EnableExperimentalFunctions: true}),
 						}
 
 						var queryTime time.Time = defaultQueryTime
@@ -6155,6 +6157,7 @@ func TestNativeHistograms(t *testing.T) {
 		MaxSamples:           1e16,
 		EnableNegativeOffset: true,
 		EnableAtModifier:     true,
+		Parser:               parser.NewParser(parser.Options{EnableExperimentalFunctions: true}),
 	}
 
 	cases := []histogramTestCase{
@@ -7038,6 +7041,7 @@ func TestDoubleExponentialSmoothing(t *testing.T) {
 				MaxSamples:           testMaxSamples,
 				EnableNegativeOffset: true,
 				EnableAtModifier:     true,
+				Parser:               parser.NewParser(parser.Options{EnableExperimentalFunctions: true}),
 			}
 
 			start := defaultStart

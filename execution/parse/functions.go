@@ -5,10 +5,21 @@ package parse
 
 import (
 	"fmt"
+	"maps"
 
 	"github.com/efficientgo/core/errors"
 	"github.com/prometheus/prometheus/promql/parser"
 )
+
+// As of Prometheus v0.311 the parser no longer accepts a per-instance function
+// map (parser.WithFunctions was removed); custom functions can only live in the
+// global parser.Functions map. Register the x-functions there unconditionally so
+// parsing is deterministic regardless of how many engines exist. Per-engine
+// gating (the EnableXFunctions option) is enforced above the parser, in the
+// engine, after parsing.
+func init() {
+	maps.Copy(parser.Functions, XFunctions)
+}
 
 var XFunctions = map[string]*parser.Function{
 	"xdelta": {

@@ -5,8 +5,8 @@ package engine
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
-	"maps"
 	"math"
 	"runtime"
 	"slices"
@@ -142,10 +142,12 @@ func NewWithScanners(opts Opts, scanners engstorage.Scanners) *Engine {
 		)
 	}
 
-	functions := make(map[string]*parser.Function, len(parser.Functions))
-	maps.Copy(functions, parser.Functions)
-	if opts.EnableXFunctions {
-		maps.Copy(functions, parse.XFunctions)
+	// As of Prometheus v0.311 the parser is configured via parser.Options and
+	// injected through EngineOpts.Parser (the old global toggles are gone).
+	// Honor a host-provided parser, otherwise use a default one.
+	queryParser := opts.Parser
+	if queryParser == nil {
+		queryParser = parser.NewParser(parser.Options{})
 	}
 
 	metrics := &engineMetrics{
@@ -179,9 +181,10 @@ func NewWithScanners(opts Opts, scanners engstorage.Scanners) *Engine {
 	}
 
 	return &Engine{
-		functions:          functions,
 		scanners:           scanners,
 		activeQueryTracker: queryTracker,
+		queryParser:        queryParser,
+		enableXFunctions:   opts.EnableXFunctions,
 
 		disableDuplicateLabelChecks: opts.DisableDuplicateLabelChecks,
 
@@ -210,9 +213,10 @@ var (
 )
 
 type Engine struct {
-	functions          map[string]*parser.Function
 	scanners           engstorage.Scanners
 	activeQueryTracker promql.QueryTracker
+	queryParser        parser.Parser
+	enableXFunctions   bool
 
 	disableDuplicateLabelChecks bool
 
@@ -231,6 +235,35 @@ type Engine struct {
 	maxSamplesPerQuery       int
 }
 
+// parseExpr parses the query and enforces per-engine gating of the x-functions.
+// As of Prometheus v0.311 custom functions can only be registered in the global
+// parser registry (parser.WithFunctions was removed), so the EnableXFunctions
+// option is enforced here, after parsing, rather than by the parser itself.
+func (e *Engine) parseExpr(qs string) (parser.Expr, error) {
+	expr, err := e.queryParser.ParseExpr(qs)
+	if err != nil {
+		return nil, err
+	}
+	if !e.enableXFunctions {
+		var xErr error
+		parser.Inspect(expr, func(node parser.Node, _ []parser.Node) error {
+			if call, ok := node.(*parser.Call); ok && parse.IsExtFunction(call.Func.Name) {
+				xErr = &parser.ParseErr{
+					PositionRange: call.PosRange,
+					Query:         qs,
+					Err:           fmt.Errorf("unknown function with name %q", call.Func.Name),
+				}
+				return xErr
+			}
+			return nil
+		})
+		if xErr != nil {
+			return nil, xErr
+		}
+	}
+	return expr, nil
+}
+
 func (e *Engine) MakeInstantQuery(ctx context.Context, q storage.Queryable, opts *QueryOpts, qs string, ts time.Time) (promql.Query, error) {
 	idx, err := e.activeQueryTracker.Insert(ctx, qs)
 	if err != nil {
@@ -238,7 +271,7 @@ func (e *Engine) MakeInstantQuery(ctx context.Context, q storage.Queryable, opts
 	}
 	defer e.activeQueryTracker.Delete(idx)
 
-	expr, err := parser.NewParser(qs, parser.WithFunctions(e.functions)).ParseExpr()
+	expr, err := e.parseExpr(qs)
 	if err != nil {
 		return nil, err
 	}
@@ -336,7 +369,7 @@ func (e *Engine) MakeRangeQuery(ctx context.Context, q storage.Queryable, opts *
 	}
 	defer e.activeQueryTracker.Delete(idx)
 
-	expr, err := parser.NewParser(qs, parser.WithFunctions(e.functions)).ParseExpr()
+	expr, err := e.parseExpr(qs)
 	if err != nil {
 		return nil, err
 	}
