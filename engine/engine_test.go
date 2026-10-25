@@ -7140,3 +7140,95 @@ func TestInstantQueryPerSeriesReleasePreventMaxSamplesFailure(t *testing.T) {
 		})
 	}
 }
+
+// TestNativeHistogramTrimOperators tests trimming operators
+// in native histograms.
+func TestNativeHistogramTrimOperators(t *testing.T) {
+	t.Parallel()
+	opts := promql.EngineOpts{
+		Logger:     promslog.NewNopLogger(),
+		MaxSamples: 1e10,
+		Timeout:    1 * time.Hour,
+	}
+
+	load := `load 1m
+  h_test {{schema:0 sum:123.75 count:34 z_bucket:1 z_bucket_w:0.001 buckets:[2 4 8 16] n_buckets:[1 2]}}
+  f_test 5`
+
+	cases := []struct {
+		name  string
+		query string
+	}{
+		{
+			name:  "trim upper on boundary",
+			query: `h_test </ 2`,
+		},
+		{
+			name:  "trim upper inside bucket",
+			query: `h_test </ 1.4142135`,
+		},
+		{
+			name:  "trim lower on boundary",
+			query: `h_test >/ 2`,
+		},
+		{
+			name:  "keep positive buckets",
+			query: `h_test >/ 0`,
+		},
+		{
+			name:  "keep negative buckets",
+			query: `h_test </ 0`,
+		},
+		{
+			name:  "trim upper +Inf noop",
+			query: `h_test </ +Inf`,
+		},
+		{
+			name:  "trim lower -Inf noop",
+			query: `h_test >/ -Inf`,
+		},
+		{
+			name:  "count after trim",
+			query: `histogram_count(h_test </ 2)`,
+		},
+		{
+			name:  "sum after trim",
+			query: `histogram_sum(h_test </ 2)`,
+		},
+		{
+			name:  "histogram trim vector",
+			query: `h_test </ f_test`,
+		},
+		{
+			name:  "invalid float lhs",
+			query: `f_test </ 2`,
+		},
+		{
+			name:  "invalid histogram rhs",
+			query: `h_test </ h_test`,
+		},
+	}
+
+	storage := promqltest.LoadedStorage(t, load)
+	defer storage.Close()
+
+	promEngine := promql.NewEngine(opts)
+	thanosEngine := engine.New(engine.Opts{EngineOpts: opts, LogicalOptimizers: logicalplan.AllOptimizers})
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+			ts := time.Unix(60, 0)
+
+			q1, err := thanosEngine.NewInstantQuery(ctx, storage, nil, tc.query, ts)
+			testutil.Ok(t, err)
+			thanosRes := q1.Exec(ctx)
+
+			q2, err := promEngine.NewInstantQuery(ctx, storage, nil, tc.query, ts)
+			testutil.Ok(t, err)
+			promRes := q2.Exec(ctx)
+
+			testutil.WithGoCmp(comparer).Equals(t, promRes, thanosRes, queryExplanation(q1))
+		})
+	}
+}
