@@ -96,6 +96,8 @@ func binOp(op parser.ItemType, lhs, rhs float64, hlhs, hrhs *histogram.FloatHist
 				return lhs, nil, lhs >= rhs, 0, nil
 			case parser.LTE:
 				return lhs, nil, lhs <= rhs, 0, nil
+			case parser.TRIM_UPPER, parser.TRIM_LOWER:
+				return 0, nil, false, warnings.WarnIncompatibleTypesInBinOp, nil
 			case parser.ATAN2:
 				return math.Atan2(lhs, rhs), nil, true, 0, nil
 			}
@@ -105,7 +107,7 @@ func binOp(op parser.ItemType, lhs, rhs float64, hlhs, hrhs *histogram.FloatHist
 			switch op {
 			case parser.MUL:
 				return 0, hrhs.Copy().Mul(lhs).Compact(0), true, 0, nil
-			case parser.ADD, parser.SUB, parser.DIV, parser.POW, parser.MOD, parser.EQLC, parser.NEQ, parser.GTR, parser.LSS, parser.GTE, parser.LTE, parser.ATAN2:
+			case parser.ADD, parser.SUB, parser.DIV, parser.POW, parser.MOD, parser.EQLC, parser.NEQ, parser.GTR, parser.LSS, parser.GTE, parser.LTE, parser.TRIM_LOWER, parser.TRIM_UPPER, parser.ATAN2:
 				return 0, nil, false, warnings.WarnIncompatibleTypesInBinOp, nil
 			}
 		}
@@ -118,6 +120,12 @@ func binOp(op parser.ItemType, lhs, rhs float64, hlhs, hrhs *histogram.FloatHist
 				return 0, hlhs.Copy().Div(rhs).Compact(0), true, 0, nil
 			case parser.ADD, parser.SUB, parser.POW, parser.MOD, parser.EQLC, parser.NEQ, parser.GTR, parser.LSS, parser.GTE, parser.LTE, parser.ATAN2:
 				return 0, nil, false, warnings.WarnIncompatibleTypesInBinOp, nil
+			case parser.TRIM_UPPER:
+				trimmedHist := hlhs.TrimBuckets(rhs, true)
+				return 0, trimmedHist, true, 0, nil
+			case parser.TRIM_LOWER:
+				trimmedHist := hlhs.TrimBuckets(rhs, false)
+				return 0, trimmedHist, true, 0, nil
 			}
 		}
 	case hlhs != nil && hrhs != nil:
@@ -155,7 +163,7 @@ func binOp(op parser.ItemType, lhs, rhs float64, hlhs, hrhs *histogram.FloatHist
 			case parser.NEQ:
 				// This operation expects that both histograms are compacted.
 				return 0, hlhs, !hlhs.Equals(hrhs), 0, nil
-			case parser.MUL, parser.DIV, parser.POW, parser.MOD, parser.GTR, parser.LSS, parser.GTE, parser.LTE, parser.ATAN2:
+			case parser.MUL, parser.DIV, parser.POW, parser.MOD, parser.GTR, parser.LSS, parser.GTE, parser.LTE, parser.TRIM_LOWER, parser.TRIM_UPPER, parser.ATAN2:
 				return 0, nil, false, warnings.WarnIncompatibleTypesInBinOp, nil
 			}
 		}
