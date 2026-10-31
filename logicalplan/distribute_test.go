@@ -1567,6 +1567,10 @@ func FuzzDistributedExecutionPreservesPartitionLabels(f *testing.F) {
 			switch f.Name {
 			case "vector", "absent", "absent_over_time":
 				continue
+			// Skip nullary scalar functions. The query generator builds them with an
+			// empty argument slot, which makes Pretty panic on a nil node.
+			case "start", "end", "step", "range":
+				continue
 			}
 			enabledFunctions = append(enabledFunctions, f)
 		}

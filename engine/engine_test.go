@@ -95,6 +95,7 @@ func TestPromqlAcceptance(t *testing.T) {
 			"testdata/fill-modifier.test",       // fill/fill_left/fill_right binary modifiers unsupported
 			"testdata/histograms.test",          // histogram_quantiles() function unsupported
 			"testdata/native_histograms.test",   // histogram_quantiles() unsupported; NH sum Kahan/accumulation gaps (follow-up)
+			"testdata/start_timestamps.test",     // start-timestamp-aware rate/increase/irate/resets (use-start-timestamps) unsupported
 		}, // TODO(sungjin1212): change to test whole cases
 		TBRun: t,
 	}
