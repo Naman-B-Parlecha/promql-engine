@@ -19,7 +19,7 @@ import (
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/promql"
 	"github.com/prometheus/prometheus/promql/parser"
-	"github.com/prometheus/prometheus/promql/promqltest"
+	teststorage "github.com/thanos-io/promql-engine/internal/teststorage"
 	"github.com/prometheus/prometheus/util/annotations"
 )
 
@@ -1545,7 +1545,7 @@ func FuzzDistributedExecutionPreservesPartitionLabels(f *testing.F) {
 			http_requests_total{pod="nginx-1", region="west"} 3+1x15
 			http_requests_total{pod="nginx-2", region="west"} 4+2x15`
 
-		testStorage := promqltest.LoadedStorage(t, load)
+		testStorage := teststorage.LoadedStorage(t, load)
 		defer testStorage.Close()
 
 		engines := []api.RemoteEngine{

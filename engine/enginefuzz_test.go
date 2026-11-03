@@ -24,7 +24,7 @@ import (
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/promql"
 	"github.com/prometheus/prometheus/promql/parser"
-	"github.com/prometheus/prometheus/promql/promqltest"
+	teststorage "github.com/thanos-io/promql-engine/internal/teststorage"
 	"github.com/prometheus/prometheus/storage"
 	"github.com/prometheus/prometheus/util/stats"
 	"github.com/stretchr/testify/require"
@@ -160,7 +160,7 @@ func FuzzEnginePromQLSmithRangeQuery(f *testing.F) {
 		}
 		qOpts := promql.NewPrometheusQueryOpts(true, 0)
 
-		storage := promqltest.LoadedStorage(t, load)
+		storage := teststorage.LoadedStorage(t, load)
 		defer storage.Close()
 
 		start := time.Unix(int64(startTS), 0)
@@ -255,7 +255,7 @@ func FuzzEnginePromQLSmithInstantQuery(f *testing.F) {
 		}
 		qOpts := promql.NewPrometheusQueryOpts(true, 0)
 
-		storage := promqltest.LoadedStorage(t, load)
+		storage := teststorage.LoadedStorage(t, load)
 		defer storage.Close()
 
 		queryTime := time.Unix(int64(ts), 0)
@@ -460,7 +460,7 @@ func FuzzNativeHistogramQuery(f *testing.F) {
 		}
 
 		qOpts := promql.NewPrometheusQueryOpts(true, 0)
-		queryable := promqltest.LoadedStorage(t, load)
+		queryable := teststorage.LoadedStorage(t, load)
 		t.Cleanup(func() {
 			queryable.Close()
 		})
@@ -685,11 +685,11 @@ func FuzzDistributedEngineQuery(f *testing.F) {
 			EnableAtModifier:     true,
 		}
 
-		storage1 := promqltest.LoadedStorage(t, load1)
+		storage1 := teststorage.LoadedStorage(t, load1)
 		defer storage1.Close()
-		storage2 := promqltest.LoadedStorage(t, load2)
+		storage2 := teststorage.LoadedStorage(t, load2)
 		defer storage2.Close()
-		combinedStorage := promqltest.LoadedStorage(t, combinedLoad)
+		combinedStorage := teststorage.LoadedStorage(t, combinedLoad)
 		defer combinedStorage.Close()
 
 		// Truncate to second precision

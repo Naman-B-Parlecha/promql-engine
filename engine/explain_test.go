@@ -18,7 +18,7 @@ import (
 	"github.com/efficientgo/core/testutil"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/promql"
-	"github.com/prometheus/prometheus/promql/promqltest"
+	teststorage "github.com/thanos-io/promql-engine/internal/teststorage"
 	"github.com/prometheus/prometheus/storage"
 	"github.com/stretchr/testify/require"
 )
@@ -319,7 +319,7 @@ func TestAnalyzeOutputNode_Samples(t *testing.T) {
 				http_requests_total{pod="nginx-1"} 1+1x100
 				http_requests_total{pod="nginx-2"} 1+1x100`
 
-	tstorage := promqltest.LoadedStorage(t, load)
+	tstorage := teststorage.LoadedStorage(t, load)
 	defer tstorage.Close()
 	minT := tstorage.Head().Meta().MinTime
 	maxT := tstorage.Head().Meta().MaxTime
@@ -433,7 +433,7 @@ func TestAnalyzPeak(t *testing.T) {
 				http_requests_total{pod="nginx-1"} 1+1x100
 				http_requests_total{pod="nginx-2"} 1+1x100`
 
-	tstorage := promqltest.LoadedStorage(t, load)
+	tstorage := teststorage.LoadedStorage(t, load)
 	defer tstorage.Close()
 	minT := tstorage.Head().Meta().MinTime
 	maxT := tstorage.Head().Meta().MaxTime

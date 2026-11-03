@@ -17,7 +17,7 @@ import (
 	"github.com/efficientgo/core/testutil"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/promql"
-	"github.com/prometheus/prometheus/promql/promqltest"
+	teststorage "github.com/thanos-io/promql-engine/internal/teststorage"
 	"github.com/prometheus/prometheus/storage"
 	"github.com/prometheus/prometheus/util/annotations"
 )
@@ -33,7 +33,7 @@ load 30s
 	http_requests_total{container="a"} 1x30
 	http_requests_total{container="b"} 2x30`
 
-	storage := promqltest.LoadedStorage(t, load)
+	storage := teststorage.LoadedStorage(t, load)
 	defer storage.Close()
 
 	newEngine := engine.New(engine.Opts{

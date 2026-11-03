@@ -45,7 +45,7 @@ import (
 	"github.com/prometheus/prometheus/tsdb/tsdbutil"
 	"github.com/prometheus/prometheus/util/annotations"
 	"github.com/prometheus/prometheus/util/stats"
-	"github.com/prometheus/prometheus/util/teststorage"
+	teststorage "github.com/thanos-io/promql-engine/internal/teststorage"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 	"golang.org/x/exp/maps"
@@ -100,7 +100,9 @@ func TestPromqlAcceptance(t *testing.T) {
 		TBRun: t,
 	}
 
-	promqltest.RunBuiltinTests(st, engine)
+	promqltest.RunBuiltinTestsWithStorage(st, engine, func(t testing.TB) storage.Storage {
+		return teststorage.New(t)
+	})
 }
 
 func TestVectorSelectorWithGaps(t *testing.T) {
@@ -183,7 +185,7 @@ func TestQuerierClosedAfterQueryClosed(t *testing.T) {
 			    http_requests_total{pod="nginx-1", route="/"} 41.00+0.20x40
 			    http_requests_total{pod="nginx-2", route="/"} 51+21.71x40`
 
-	storage := promqltest.LoadedStorage(t, load)
+	storage := teststorage.LoadedStorage(t, load)
 	defer storage.Close()
 
 	optimizers := logicalplan.AllOptimizers
@@ -2361,7 +2363,7 @@ or
 		for _, tc := range cases {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
-				storage := promqltest.LoadedStorage(t, tc.load)
+				storage := teststorage.LoadedStorage(t, tc.load)
 				defer storage.Close()
 
 				if tc.start.Equal(time.Time{}) {
@@ -2719,7 +2721,7 @@ func TestXFunctionsRangeQuery(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			storage := promqltest.LoadedStorage(t, tc.load)
+			storage := teststorage.LoadedStorage(t, tc.load)
 			defer storage.Close()
 
 			ctx := context.Background()
@@ -3219,7 +3221,7 @@ func TestXFunctions(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			storage := promqltest.LoadedStorage(t, tc.load)
+			storage := teststorage.LoadedStorage(t, tc.load)
 			defer storage.Close()
 
 			queryTime := defaultQueryTime
@@ -3551,7 +3553,7 @@ func TestRateVsXRate(t *testing.T) {
 				load = tc.load
 			}
 
-			storage := promqltest.LoadedStorage(t, load)
+			storage := teststorage.LoadedStorage(t, load)
 			defer storage.Close()
 
 			queryTime := defaultQueryTime
@@ -4865,7 +4867,7 @@ min without () (
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			testStorage := promqltest.LoadedStorage(t, tc.load)
+			testStorage := teststorage.LoadedStorage(t, tc.load)
 			defer testStorage.Close()
 			for _, disableOptimizers := range disableOptimizerOpts {
 				t.Run(fmt.Sprintf("disableOptimizers=%t", disableOptimizers), func(t *testing.T) {
@@ -5024,7 +5026,7 @@ func TestQueryTimeout(t *testing.T) {
 		MaxSamples: math.MaxInt64,
 	}
 
-	storage := promqltest.LoadedStorage(t, load)
+	storage := teststorage.LoadedStorage(t, load)
 	defer storage.Close()
 
 	newEngine := engine.New(engine.Opts{EngineOpts: opts})
@@ -5790,7 +5792,7 @@ quantile without (pod) (
 			}
 			qOpts := promql.NewPrometheusQueryOpts(true, 5*time.Minute)
 
-			storage := promqltest.LoadedStorage(t, tc.load)
+			storage := teststorage.LoadedStorage(t, tc.load)
 			defer storage.Close()
 
 			ctx := context.Background()
@@ -7034,7 +7036,7 @@ func TestDoubleExponentialSmoothing(t *testing.T) {
 		t.Run(tcase.name, func(t *testing.T) {
 			t.Parallel()
 
-			storage := promqltest.LoadedStorage(t, tcase.load)
+			storage := teststorage.LoadedStorage(t, tcase.load)
 			defer storage.Close()
 
 			opts := promql.EngineOpts{

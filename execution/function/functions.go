@@ -176,6 +176,12 @@ var instantVectorFuncs = map[string]functionCall{
 	"sort_by_label_desc": simpleFunc(func(v float64) float64 {
 		return v
 	}),
+	"min_of": func(f float64, _ *histogram.FloatHistogram, args ...float64) (float64, bool) {
+		return math.Min(f, args[0]), true
+	},
+	"max_of": func(f float64, _ *histogram.FloatHistogram, args ...float64) (float64, bool) {
+		return math.Max(f, args[0]), true
+	},
 }
 
 type noArgFunctionCall func(t int64) float64

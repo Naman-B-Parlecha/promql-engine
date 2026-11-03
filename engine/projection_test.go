@@ -22,7 +22,7 @@ import (
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/promql"
 	"github.com/prometheus/prometheus/promql/parser"
-	"github.com/prometheus/prometheus/promql/promqltest"
+	teststorage "github.com/thanos-io/promql-engine/internal/teststorage"
 	"github.com/prometheus/prometheus/storage"
 	"github.com/prometheus/prometheus/tsdb/chunkenc"
 	"github.com/prometheus/prometheus/util/annotations"
@@ -164,7 +164,7 @@ func TestProjectionWithFuzz(t *testing.T) {
 		errors_total{pod="nginx-3", job="api", env="prod", instance="3", cluster="us-east-2"} 1.5+1.5x40
 		errors_total{pod="nginx-4", job="api", env="dev", instance="4", cluster="us-east-1"} 2+2x40`
 
-	storage := promqltest.LoadedStorage(t, load)
+	storage := teststorage.LoadedStorage(t, load)
 	defer storage.Close()
 
 	// Get series for PromQLSmith
