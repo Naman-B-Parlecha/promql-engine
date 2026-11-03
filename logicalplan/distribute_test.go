@@ -19,8 +19,8 @@ import (
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/promql"
 	"github.com/prometheus/prometheus/promql/parser"
-	teststorage "github.com/thanos-io/promql-engine/internal/teststorage"
 	"github.com/prometheus/prometheus/util/annotations"
+	teststorage "github.com/thanos-io/promql-engine/internal/teststorage"
 )
 
 var replacements = map[string]*regexp.Regexp{
@@ -1569,7 +1569,7 @@ func FuzzDistributedExecutionPreservesPartitionLabels(f *testing.F) {
 				continue
 			// Skip nullary scalar functions. The query generator builds them with an
 			// empty argument slot, which makes Pretty panic on a nil node.
-			case "start", "end", "step", "range":
+			case "start", "end", "step", "range", "start_timestamp":
 				continue
 			}
 			enabledFunctions = append(enabledFunctions, f)

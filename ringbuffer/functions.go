@@ -868,6 +868,9 @@ func madOverTime(points []Sample) (float64, bool, warnings.Warnings) {
 			floatsDetected = true
 
 		}
+		if math.IsNaN(f.V.F) {
+			return math.NaN(), true, warn
+		}
 		values = append(values, f.V.F)
 	}
 	sort.Float64s(values)

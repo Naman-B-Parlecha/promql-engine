@@ -45,8 +45,8 @@ import (
 	"github.com/prometheus/prometheus/tsdb/tsdbutil"
 	"github.com/prometheus/prometheus/util/annotations"
 	"github.com/prometheus/prometheus/util/stats"
-	teststorage "github.com/thanos-io/promql-engine/internal/teststorage"
 	"github.com/stretchr/testify/require"
+	teststorage "github.com/thanos-io/promql-engine/internal/teststorage"
 	"go.uber.org/goleak"
 	"golang.org/x/exp/maps"
 )
@@ -95,7 +95,7 @@ func TestPromqlAcceptance(t *testing.T) {
 			"testdata/fill-modifier.test",       // fill/fill_left/fill_right binary modifiers unsupported
 			"testdata/histograms.test",          // histogram_quantiles() function unsupported
 			"testdata/native_histograms.test",   // histogram_quantiles() unsupported; NH sum Kahan/accumulation gaps (follow-up)
-			"testdata/start_timestamps.test",     // start-timestamp-aware rate/increase/irate/resets (use-start-timestamps) unsupported
+			"testdata/start_timestamps.test",    // start-timestamp-aware rate/increase/irate/resets (use-start-timestamps) unsupported
 		}, // TODO(sungjin1212): change to test whole cases
 		TBRun: t,
 	}
@@ -4961,17 +4961,18 @@ func TestQueryConcurrency(t *testing.T) {
 	}
 
 	var (
-		ctx          = context.Background()
-		logger       = promslog.New(&promslog.Config{Writer: os.Stdout})
-		concurrency  = 2
-		maxQueries   = 4
-		responseChan = make(chan struct{}, maxQueries)
+		ctx                   = context.Background()
+		logger                = promslog.New(&promslog.Config{Writer: os.Stdout})
+		concurrency           = 2
+		maxQueries            = 4
+		responseChan          = make(chan struct{}, maxQueries)
+		activeQueryTracker, _ = promql.NewActiveQueryTracker(t.TempDir(), concurrency, logger)
 	)
 	newEngine := engine.New(engine.Opts{
 		EngineOpts: promql.EngineOpts{
 			Timeout:            1 * time.Hour,
 			MaxSamples:         math.MaxInt64,
-			ActiveQueryTracker: promql.NewActiveQueryTracker(t.TempDir(), concurrency, logger),
+			ActiveQueryTracker: activeQueryTracker,
 		}},
 	)
 	for range maxQueries {

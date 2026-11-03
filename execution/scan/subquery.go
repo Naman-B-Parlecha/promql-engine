@@ -318,7 +318,7 @@ func (o *subqueryOperator) initSeries(ctx context.Context) error {
 		}
 		for i, s := range series {
 			lbls := s
-			if o.funcExpr.Func.Name != "last_over_time" {
+			if o.funcExpr.Func.Name != "last_over_time" && o.funcExpr.Func.Name != "first_over_time" {
 				lbls = s.DropReserved(schema.IsMetadataLabel)
 			}
 			o.series[i] = lbls
